@@ -1,0 +1,371 @@
+---
+title: "Introduction to Data Visualizations in R"
+output: html_notebook
+author: Antonio Parada
+---
+
+This is an R Markdown Notebook dedicated to the introduction of data visualizations in R. Similar to the Python Data Visualization Jupyter Notebook on my Github, I will be using the same NYC OpenData file and running similar visuals. Specifically, I be utilizing ggplot2 to create data visualizations and will also be using the tidyverse package to run data wrangling packages, notably dplyr.
+
+
+***
+
+## Load and cleaning our Dataset:
+
+The first thing we do when creating visualizations is to import the necessary packages and reading our dataset that we will be working with.
+
+```{r include=FALSE}
+### Loading our data
+#Since 'tidyverse' contains many libraries such as 'ggplot2' and 'dplyr', we can just load tidyverse to load all other libaries needed. 
+library('tidyverse')
+
+#load dataset from Gitbub
+Fires2018 <- read_csv('https://raw.githubusercontent.com/aparada96/nycopendata-dataVisuals/main/2018%20Fire%20Incident%20Data.csv')
+
+```
+
+
+```{r include=FALSE}
+### Cleaning data
+# Since the data has a valid response indicator, we will filter for those responses only.
+
+Fires2018 <- Fires2018 %>% filter(VALID_INCIDENT_RSPNS_TIME_INDC =='Y') # Filter for Valid Responses Only
+
+
+# Renaming columns of interest 
+Fires2018 <- Fires2018 %>% rename( Zip = ZIPCODE,
+                                   ResponseTime = INCIDENT_RESPONSE_SECONDS_QY,
+                                   IncidentType = INCIDENT_CLASSIFICATION_GROUP,
+                                   Borough = INCIDENT_BOROUGH,
+                                   Date = INCIDENT_DATETIME,
+                                   Neighborhood = ALARM_BOX_LOCATION)
+  
+# Remove the time-stamp from our date variable by specifying the format
+Fires2018['Date'] <-  as.Date(Fires2018$Date,format="%m/%d/%Y")
+
+
+head(Fires2018,10) #check that our data was cleaned!
+
+
+```
+
+***
+
+## Single Variable Visualization 
+
+There are two types of variables we can visualize: categorical and numerical variables.
+
+### Categorical Variables 
+
+#### Bar Graphs
+
+Bar graphs are useful for visualizing single variables. We can use these to visualize the count of each category in a variable.
+There are different variations of bar graphs including: horizontal bar graphs, lollipop and dot plots.
+
+Let's visualize the number of fires per borough from our dataset. First, we are going to create a new dataframe with just the borough variable from our Fire2018 dataframe. Once we pull out the variable of interest we will count the number of occurrences of each borough to get the number of fires per borough.
+
+```{r include=FALSE}
+
+# Getting the count of each borough
+BoroCount <-Fires2018 %>%
+  group_by(Borough) %>%
+  summarise(Count = n())
+
+
+# Sorting the df by ascending value to ensure our visualization is sorted correctly
+# When creating bar graphs it is important to make sure they are sorted
+
+BoroCount <- BoroCount %>% arrange(desc(Count) ) 
+
+head(BoroCount)
+
+```
+
+*Bar Plot*
+
+```{r}
+
+ggplot(data=BoroCount , aes(x=Borough,y=Count) ) + geom_col(fill='dodgerblue')
+
+ggplot(data=BoroCount , aes(x=Borough,y=Count) ) + geom_bar(stat="identity", fill='dodgerblue1') #same plot as geom_col()
+
+
+#Adding labels to our graphs
+ggplot(data=BoroCount , aes(x=Borough,y=Count) ) + geom_col(fill='dodgerblue2')+ labs(title='Incident Types by Borough', x='Borough', y='Number of Incidents')
+
+# Saving our plot as an object that we can call later 
+GG1 = ggplot(data=BoroCount , aes(x=Borough,y=Count) ) + geom_col(fill='dodgerblue2')+ labs(title='Incident Count by Borough', x='Borough', y='Number of Incidents')
+
+```
+
+```{r}
+# We can also save the way we customize our graph as an object that we can call later. 
+
+Custom1 = theme(axis.text.x = element_text(face="italic", color="dodgerblue4", size=8),
+        axis.text.y = element_text(face="italic", color="blue", size=8, angle=30),
+        axis.line = element_line(colour = "black", size = 1, linetype = "solid"),
+        plot.title = element_text(color="Navy", size=14, face="bold.italic"),
+        axis.title.x = element_text(face="bold", color="royalblue", size=12),
+        axis.title.y = element_text(face="bold", color="royalblue", size=12),
+        legend.position = "right",
+        legend.title = element_text(color = "blue", size = 12),
+        legend.text = element_text(color = "grey",size=8),
+        panel.background = element_rect(fill= "white")) #gives us a clear background
+
+# Create a new ggplot graph based on our original plot (GG1)
+GG1  + Custom1 
+
+```
+
+By leveraging the theme() function and saving our customized theme as an object, we can combine it with a ggplot that we created earlier. 
+
+#### Horizontal Bar Plot
+
+A variation of a standard bar graph is the horizontal bar graph. This variation is often helpful when the category names are long so they do not overlap on the x-axis, rather it is given ample space on the y-axis so it is easier to read.
+When the bars are similar in length, it can also be beneficial to create a lollipop or dot plot. These plots make it easier to distinguish the slight differences in bar length and you may truncate the axis to make a better plot.
+
+```{r}
+#first group by neighborhood & compute mean response time for each area
+#next filter for the top 30 neighborhoods and sort by highest to lowest
+
+tophoods <- Fires2018 %>%  group_by(Neighborhood) %>%
+  summarise(ResponseTime = mean(ResponseTime)) %>%  top_n(30, ResponseTime) %>% arrange(desc(ResponseTime))
+ 
+head(tophoods)
+
+```
+
+*Horizontal Bar Plot*
+```{r}
+
+ggplot(tophoods , aes(x=reorder(Neighborhood,ResponseTime),y=ResponseTime) ) + geom_col(fill='darkolivegreen') + coord_flip() + labs(title='Top 30 Slowest Neighborhoods', x='Response Time (seconds)', y='Neighborhoods')
+
+
+
+```
+
+
+
+### Numerical Variables 
+
+#### Histogram 
+
+Histograms look very similar to bar graphs but they differ because histograms are only used for numerical data to demonstrate a frequency distribution, whereas bar graphs compare data.
+For example, we will create a histogram that illustrates response time to fires in NYC. We will use the 'color' function within the 'geom_histogram' function to better illustrate the bins.
+
+```{r}
+#Histogram for response time variables
+
+ggplot(Fires2018, aes(x=ResponseTime) ) + geom_histogram(bins=50, color = 'darkorange')+ #default bins are 30
+  labs(title='Distribution of Response Time', x='Response Time (seconds)') 
+
+```
+
+When we have our outliers in our data (extreme values), this can result in our data being possibly skewed. To address this, we can recode the outliers by setting a limit to the observations.
+
+```{r}
+#Recode for outliers in response times. 
+
+Fires2018$ResponseTime <- ifelse(Fires2018$ResponseTime > 1500, 1500, Fires2018$ResponseTime)
+
+
+# Replot our data
+
+ggplot(Fires2018, aes(x=ResponseTime) ) + geom_histogram(bins=50,color='deeppink') +
+  labs(title='Distribution of Response Time', x='Response Time (seconds)') 
+
+```
+
+#### Density Plot
+
+Density plots are a variation of histograms that are useful for visualizing the underlying probability distribution. Unlike a histogram the y-axis of density plots represents the height of the curve (it's density), whereas the y-axis of a histogram denotes a count.
+
+Violin and box plots are variations of histograms and density plots that can also be used.
+
+```{r}
+
+ggplot(Fires2018, aes(x=ResponseTime) ) + geom_density(fill='deepskyblue4') + labs(title='Distribution of Response Time', x='Response Time (seconds)') 
+
+
+```
+
+
+***
+
+## Two or More Variable Visualizations
+
+### Categorical Variables
+
+There are many visualization options for multiple categorical variables such as: side by side graphs, grouped bar graphs, stacked bar graphs, mosaic plots, tree maps, and parallel sets.
+
+#### Grouped Bar Chart
+An alternate option for multiple categorical variables is a grouped bar graph.
+
+
+```{r}
+# Getting the count of each incident by borough
+Bincident <- Fires2018 %>% group_by(Borough, IncidentType) %>%summarise(Count = n()) 
+
+
+Bincident$Borough[Bincident$Borough=="RICHMOND / STATEN ISLAND"] <- "STATEN ISLAND"
+
+
+head(Bincident)
+
+
+```
+
+*Creating the grouped bar graph*
+
+```{r}
+
+# Grouped Bar Chart
+ggplot(data=Bincident , aes(x=Borough,y=Count,fill=IncidentType) ) + geom_bar(stat="identity", position = "dodge") + labs(title='Incident Types by Borough', x='Response Time (seconds)') 
+
+
+# Stacked Bar Chart
+ggplot(Bincident, aes(x=Borough, y=Count,fill=IncidentType)) +geom_bar(stat='identity') + labs(title='Incident Types by Borough', x='Response Time (seconds)') + scale_fill_brewer(palette="Set1") #change colors 
+
+```
+
+### Numerical Variables 
+Numerical variables can be of two types. X-Y relationships and time series relationships.
+There are many visualization options for X-Y relationships such as: scatter plots and hexbins.
+For time series there are line and area graphs.
+
+#### Scatterplot
+
+Scatter plots are useful to determine if two variables are related or when there is paired numerical data. This means if the data contains two numerical variables that go together (for example, price and square feet in a dataset about house costs) a scatter plot would be a useful visualization.
+Hexbins are another type of graph that can be a useful way to maneuver overplotting in scatter plots.
+
+```{r}
+ggplot(Fires2018, aes(x=Date, y=ResponseTime)) + 
+    geom_point(
+        color="darkorange3",
+        alpha=0.5,
+        size=1 ) +  labs(title='Incidents Throughout 2018', y='Response Time in Seconds') 
+
+
+```
+
+
+#### Time Series
+
+Line graphs are often used to demonstrate time trends and are referred to as a "time series." A time series is a sequence of data points plotted over time using lines, but can also consist of multiple data points.
+In this example, we will look at fire response time trends throughout the course of the year to see if the time it takes to respond to a fire throughout the five boroughs changes monthly.
+
+```{r}
+
+borough = Fires2018 %>% group_by(Date,Borough) %>% summarise(ResponseTime = mean(ResponseTime))
+
+
+
+# individual boroughs
+Bronx = filter(borough, Borough == 'BRONX')
+#Brooklyn = filter(borough, Borough == 'BROOKLYN')
+#Manhattan = filter(borough, Borough == 'MANHATTAN')
+#Queens = filter(borough, Borough == 'QUEENS')
+
+
+# Time Series
+ggplot(Bronx, aes(x=Date,y=ResponseTime) ) + geom_line(color='darkorchid4') + ggtitle("Average Response Time Throughout 2018 (in Seconds)")
+
+```
+
+#### To improve our plot, we can calculate a moving/rolling average.
+
+In statistics, a moving average (rolling average or running average) is a calculation to analyze data points by creating a series of **averages of different subsets** of the full data set.  -- [Wikipedia](https://en.wikipedia.org/wiki/Moving_average)
+
+
+For example, for a time window of 14 days, we calculate the average values over the 14-day period. The time window then moves by one day, so it now spans the 2nd to 15th day and calculates the average over those 14 days. The time window then moves another 14 days and goes on. The result is a new time series consisting of a sequence of averaged data.
+
+```{r}
+# Adding a 14-Day and 30-Day Moving Average using rollmean()
+#library(zoo) # moving averages
+
+    
+Bronx1 <- borough  %>% mutate(avg_03day = zoo::rollmean(ResponseTime, k = 3, fill = NA),
+                  avg_05day= zoo::rollmean(ResponseTime, k = 5, fill = NA),
+                  avg_07day = zoo::rollmean(ResponseTime, k = 7, fill = NA)) %>% ungroup()
+          
+
+
+```
+
+
+Replot our new time series
+
+```{r}
+#New time series
+
+
+ggplot(Bronx1, aes(x=Date,
+             y=ResponseTime)) +
+  geom_col(fill="pink")+
+  geom_line(aes(y = avg_03day), 
+            color = "red", 
+            size = .75)
+
+
+
+```
+
+
+***
+
+## Categorical & Numerical Variables 
+Now we will look at how to visualize categorical and numerical variables together.
+Some ways to do this are: faceting or stacking and overlapping.
+
+
+### Faceting 
+Faceting is when there are multiple graphs side by side. Each of the panels would be organized by the categorical variable, for example: country name or gender.
+
+This can be useful to visualize differences within a variable's categories.
+
+#### Facet Histogram 
+
+Let's create a Facet Histogram for 
+```{r}
+
+#save our previous histogram as an object 
+histo <- ggplot(Fires2018, aes(x=ResponseTime) ) + geom_histogram(bins=50,color='deeppink') 
+
+histo + facet_wrap(~Borough,nrow = 2) + #we specify that we want borough to be faceted w/ 2 rows
+  labs(title='Distribution of Response Time', x='Response Time (seconds)') 
+
+
+```
+
+### Stacking & Overlapping 
+Stacking and overlapping is an alternative to faceting where we are able to collapse all the graphs into one instead of having multiple pannels. This may also be easier to make comparisons among the different graphs.
+
+
+#### Stacked violin plot
+
+```{r}
+
+ggplot(Fires2018,aes(y=Borough, x=ResponseTime,fill=Borough)) + 
+  geom_violin(position = "identity")
+
+```
+
+
+#### Ridge Plot
+
+```{r}
+#Calculate Avg. Response Time of Month in 2018 
+library(ggridges)
+
+
+ggplot(Fires2018,aes(y=IncidentType,x=ResponseTime, fill=IncidentType)) + geom_density_ridges(quantile_lines=TRUE) + theme(legend.position="none") + ggtitle("Incident Types Distribution")
+
+
+```
+
+
+
+**Acknowledgement**: *This Jupyter Notebook was created with use of course materials from <DATA 790 Data Visualization with Python with Professor Yinxian Zhang at Queens College.*
+
+
+
+
