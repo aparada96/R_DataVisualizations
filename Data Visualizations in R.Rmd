@@ -364,8 +364,5 @@ ggplot(Fires2018,aes(y=IncidentType,x=ResponseTime, fill=IncidentType)) + geom_d
 
 
 
-**Acknowledgement**: *This Jupyter Notebook was created with use of course materials from <DATA 790 Data Visualization with Python with Professor Yinxian Zhang at Queens College.*
-
-
 
 
